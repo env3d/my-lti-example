@@ -48,12 +48,20 @@ def get_tool_config( merge_config ):
     """ pick the lms settings and add client_id and deployment_id """
 
     iss = merge_config['iss']
+    client_id = merge_config["client_id"]
     settings = lms_settings[iss]
-    settings["client_id"] = merge_config["client_id"]
+    settings["client_id"] = client_id
     settings["deployment_ids"] = [ merge_config["lti_deployment_id"] ]
 
-    logging.info(settings)
-    return ToolConfDict({ iss: settings })
+    tool_conf = ToolConfDict({ iss: settings })
+
+    with open(settings['public_key_file'], encoding="utf-8") as prf:
+        tool_conf.set_public_key(iss, prf.read(), client_id=client_id)
+        
+    with open(settings['private_key_file'], encoding="utf-8") as prf:
+        tool_conf.set_private_key(iss, prf.read(), client_id=client_id)
+
+    return tool_conf
 
 class ReverseProxied:
     def __init__(self, app):
@@ -195,7 +203,8 @@ def score(launch_id, score):
     try:
         result=grades.put_grade(sc)
         return jsonify({'success': True, 'result': result.get('body')})
-    except:
+    except Exception as err:
+        logging.error(err)
         return jsonify({'success': False})
 
 if __name__ == '__main__':
