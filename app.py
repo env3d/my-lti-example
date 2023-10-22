@@ -10,17 +10,50 @@ import datetime
 import os
 import random
 import pprint
+import json
+import jwt
+import logging
+logging.getLogger().setLevel(logging.INFO)
 
 from tempfile import mkdtemp
-from flask import Flask, jsonify, request, render_template, url_for
+from flask import Flask, jsonify, request, render_template, url_for, Response, session
 from flask_caching import Cache
 from werkzeug.exceptions import Forbidden
 from pylti1p3.contrib.flask import FlaskOIDCLogin, FlaskMessageLaunch, FlaskRequest, FlaskCacheDataStorage
 from pylti1p3.deep_link_resource import DeepLinkResource
 from pylti1p3.grade import Grade
-from pylti1p3.tool_config import ToolConfJsonFile
-from pylti1p3.registration import Registration
 
+#from pylti1p3.tool_config import ToolConfJsonFile
+#from json_file import ToolConfJsonFile
+from pylti1p3.tool_config import ToolConfDict
+
+lms_settings = {
+    "https://elearn.capu.ca": {
+        "auth_login_url": "https://elearn.capu.ca/mod/lti/auth.php",
+        "auth_token_url": "https://elearn.capu.ca/mod/lti/token.php",
+        "key_set_url": "https://elearn.capu.ca/mod/lti/certs.php",
+        "private_key_file": "private.key",
+        "public_key_file": "public.key"
+    },
+    "https://sandbox.moodledemo.net": {
+        "auth_login_url": "https://sandbox.moodledemo.net/mod/lti/auth.php",
+        "auth_token_url": "https://sandbox.moodledemo.net/mod/lti/token.php",
+        "key_set_url": "https://sandbox.moodledemo.net/mod/lti/certs.php",        
+        "private_key_file": "private.key",
+        "public_key_file": "public.key"       
+    }
+}
+
+def get_tool_config( merge_config ):
+    """ pick the lms settings and add client_id and deployment_id """
+
+    iss = merge_config['iss']
+    settings = lms_settings[iss]
+    settings["client_id"] = merge_config["client_id"]
+    settings["deployment_ids"] = [ merge_config["lti_deployment_id"] ]
+
+    logging.info(settings)
+    return ToolConfDict({ iss: settings })
 
 class ReverseProxied:
     def __init__(self, app):
@@ -54,7 +87,7 @@ app.config.from_mapping(config)
 cache = Cache(app)
 
 class ExtendedFlaskMessageLaunch(FlaskMessageLaunch):
-
+        
     def validate_nonce(self):
         """
         Probably it is bug on "https://lti-ri.imsglobal.org":
@@ -78,41 +111,65 @@ def get_launch_data_storage():
 
 @app.route('/login/', methods=['GET', 'POST'])
 def login():
-
-    tool_conf = ToolConfJsonFile(get_lti_config_path())
+    logging.info("/login data:")
+    logging.info(request.values)
+    
+    tool_conf = get_tool_config(request.values)    
+    
     launch_data_storage = get_launch_data_storage()
 
     flask_request = FlaskRequest()
     target_link_uri = flask_request.get_param('target_link_uri')
     if not target_link_uri:
         raise Exception('Missing "target_link_uri" param')
-
+    
     oidc_login = FlaskOIDCLogin(flask_request, tool_conf, launch_data_storage=launch_data_storage)
-    print("/login")
-    pprint.pprint(request.form)
     return oidc_login\
         .enable_check_cookies()\
         .redirect(target_link_uri)
 
 @app.route('/launch/', methods=['POST'])
 def launch():
-    tool_conf = ToolConfJsonFile(get_lti_config_path())
-    flask_request = FlaskRequest()
-    launch_data_storage = get_launch_data_storage()
-    message_launch = ExtendedFlaskMessageLaunch(flask_request, tool_conf, launch_data_storage=launch_data_storage)
-    message_launch_data = message_launch.get_launch_data()
+    logging.info('/launch')
 
+    flask_request = FlaskRequest()
+    
+    client_info = jwt.decode(request.values['id_token'], options={"verify_signature": False})
+    
+    override = { 'iss': client_info['iss'],
+                 'client_id': client_info["aud"],
+                 'lti_deployment_id': client_info["https://purl.imsglobal.org/spec/lti/claim/deployment_id"]}
+
+    tool_conf = get_tool_config( override )
+    
+    launch_data_storage = get_launch_data_storage()    
+
+    message_launch = ExtendedFlaskMessageLaunch(flask_request, tool_conf, launch_data_storage=launch_data_storage)
+    
+    message_launch_data = message_launch.get_launch_data()
 
     random_score = random.randint(0,99)
 
-    req = f"http://localhost:9001/api/score/{message_launch.get_launch_id()}/{random_score}/"
+    host = request.headers['X-Forwarded-Host'] if 'X-Forwarded-Host' in request.headers else request.headers['Host']
+    req = f"https://{host}/lti/api/score/{message_launch.get_launch_id()}/{random_score}/"
     return f'<a href={req}>{req}</a>'
 
 @app.route('/api/score/<launch_id>/<score>/', methods=['GET'])
 def score(launch_id, score):
-    tool_conf = ToolConfJsonFile(get_lti_config_path())
+
+    client_info = cache.get(launch_id)
+    override = { 'iss': client_info['iss'],
+                 'client_id': client_info["aud"],
+                 'lti_deployment_id': client_info["https://purl.imsglobal.org/spec/lti/claim/deployment_id"]}
+    
+    tool_conf = get_tool_config( override )
+    
     flask_request = FlaskRequest()
+    
     launch_data_storage = get_launch_data_storage()
+    
+    #tool_conf = ToolConfJsonFile(get_lti_config_path(), override=override)    
+
     message_launch = ExtendedFlaskMessageLaunch.from_cache(launch_id, flask_request, tool_conf,
                                                            launch_data_storage=launch_data_storage)
 
