@@ -12,6 +12,7 @@ import random
 import pprint
 import json
 import jwt
+import base64
 import logging
 logging.getLogger().setLevel(logging.INFO)
 
@@ -134,7 +135,11 @@ def login():
         .enable_check_cookies()\
         .redirect(target_link_uri)
 
-@app.route('/launch/', methods=['POST'])
+@app.route('/', methods=['GET'])
+def index():
+    return "<h1>My LTI Connector</h1>\n"
+
+@app.route('/', methods=['POST'])
 def launch():
     logging.info('/launch')
 
@@ -180,8 +185,8 @@ def launch():
         # return f'<a href={req}>{req}</a>'        
         return Response(response=output, headers={ 'content-type': 'text/plain' })
 
-@app.route('/launch/api/score/<launch_id>/<score>/', methods=['GET'])
-@app.route('/launch/api/score/<launch_id>/<score>/<comment>', methods=['GET'])
+@app.route('/api/score/<launch_id>/<score>/', methods=['GET'])
+@app.route('/api/score/<launch_id>/<score>/<comment>', methods=['GET'])
 def score(launch_id, score, comment=None):
     logging.info(f"API: Score, with launch id: {launch_id}")
 
@@ -220,14 +225,15 @@ def score(launch_id, score, comment=None):
         .set_grading_progress('FullyGraded') \
         .set_user_id(sub)
     if comment != None:
-        sc.set_comment(comment)
+        # comment has to be base64 encoded
+        sc.set_comment(base64.urlsafe_b64decode(comment).decode())
 
     try:
         result=grades.put_grade(sc)
         return jsonify({'success': True, 'result': result.get('body')})
     except Exception as err:
         logging.error(err)
-        return jsonify({'success': False})
+        return jsonify({'error': str(err)})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=9001)

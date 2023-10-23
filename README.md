@@ -16,11 +16,11 @@ $ openssl rsa -in private.key -pubout -out public.key
 1. Login as Teacher
 1. Go to class, then "More" -> "LTI External Tools"
 1. Fill out the following fields:
- - Tool URL: ${APP_URL}/launch/
+ - Tool URL: ${APP_URL}/
  - Public key type: RSA Key
  - Public key: $(cat public.key)
  - Initiate login URL: ${APP_URL}/login/
- - Redirection URI: ${APP_URL}/launch/
+ - Redirection URI: ${APP_URL}/
 1. Under "Services"
  - IMS LTI Assignment and Grade Services: Use this service for grade sync and column management
 
