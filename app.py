@@ -156,9 +156,13 @@ def launch():
 
     launch_id = message_launch.get_launch_id()
     
-    try:
-        redirect_url = message_launch_data["https://purl.imsglobal.org/spec/lti/claim/custom"]["redirect"]
-        destination_url = f'{redirect_url}#launch_id={launch_id}'
+    try:        
+        #redirect_url = message_launch_data["https://purl.imsglobal.org/spec/lti/claim/custom"]["redirect"]
+        redirect_url = message_launch_data["https://purl.imsglobal.org/spec/lti/claim/resource_link"]["description"]
+        tool_base = message_launch_data["https://purl.imsglobal.org/spec/lti/claim/target_link_uri"]
+        if len(redirect_url.strip()) == 0:
+            raise Exception('redirect_url not provided')
+        destination_url = f'{redirect_url}#launch_id={launch_id}&tool_base={tool_base}'
         return Response(f'Redirecting to <a href={destination_url}>{destination_url}</a>',
                         status=301,
                         headers={'location': f'{destination_url}'})
@@ -167,7 +171,7 @@ def launch():
             f'Launch successful, please note the details below\n',
             f'launch_id (useful for calling the rest of api): {launch_id}\n',
             f'launch_id will be fowarded to another app using HTML fragment if you provide',
-            f'a custom field with  "redirect": "url"\n',
+            f'the redirection url in the activitiy description\n',
             f'{json.dumps(message_launch_data, indent=2)}'
         ])
         # host = request.headers['X-Forwarded-Host'] if 'X-Forwarded-Host' in request.headers else request.headers['Host']    
@@ -176,8 +180,8 @@ def launch():
         # return f'<a href={req}>{req}</a>'        
         return Response(response=output, headers={ 'content-type': 'text/plain' })
 
-@app.route('/api/score/<launch_id>/<score>/', methods=['GET'])
-@app.route('/api/score/<launch_id>/<score>/<comment>', methods=['GET'])
+@app.route('/launch/api/score/<launch_id>/<score>/', methods=['GET'])
+@app.route('/launch/api/score/<launch_id>/<score>/<comment>', methods=['GET'])
 def score(launch_id, score, comment=None):
     logging.info(f"API: Score, with launch id: {launch_id}")
 
