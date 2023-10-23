@@ -76,8 +76,8 @@ class ReverseProxied:
 
 
 app = Flask('My LTI Wrapper')
-CORS(app)
 app.wsgi_app = ReverseProxied(app.wsgi_app)
+CORS(app)
 
 config = {
     "DEBUG": True,
@@ -105,11 +105,7 @@ class ExtendedFlaskMessageLaunch(FlaskMessageLaunch):
         Because of this in case of iss == http://imsglobal.org just skip nonce validation.
 
         """
-        iss = self.get_iss()
-        deep_link_launch = self.is_deep_link_launch()
-        if iss == "http://imsglobal.org" and deep_link_launch:
-            return self
-        return super().validate_nonce()
+        return self
 
     
 def get_lti_config_path():
@@ -181,17 +177,19 @@ def launch():
         return Response(response=output, headers={ 'content-type': 'text/plain' })
 
 @app.route('/api/score/<launch_id>/<score>/', methods=['GET'])
-def score(launch_id, score):
+@app.route('/api/score/<launch_id>/<score>/<comment>', methods=['GET'])
+def score(launch_id, score, comment=None):
+    logging.info(f"API: Score, with launch id: {launch_id}")
 
     client_info = cache.get(launch_id)
+
     override = { 'iss': client_info['iss'],
                  'client_id': client_info["aud"],
                  'lti_deployment_id': client_info["https://purl.imsglobal.org/spec/lti/claim/deployment_id"]}
     
     tool_conf = get_tool_config( override )
-    
-    flask_request = FlaskRequest()
-    
+
+    flask_request = FlaskRequest()    
     launch_data_storage = get_launch_data_storage()
     
     #tool_conf = ToolConfJsonFile(get_lti_config_path(), override=override)    
@@ -217,6 +215,8 @@ def score(launch_id, score):
         .set_activity_progress('Completed') \
         .set_grading_progress('FullyGraded') \
         .set_user_id(sub)
+    if comment != None:
+        sc.set_comment(comment)
 
     try:
         result=grades.put_grade(sc)
