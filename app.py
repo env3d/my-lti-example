@@ -17,6 +17,7 @@ logging.getLogger().setLevel(logging.INFO)
 
 from tempfile import mkdtemp
 from flask import Flask, jsonify, request, render_template, url_for, Response, session
+from flask_cors import CORS
 from flask_caching import Cache
 from werkzeug.exceptions import Forbidden
 from pylti1p3.contrib.flask import FlaskOIDCLogin, FlaskMessageLaunch, FlaskRequest, FlaskCacheDataStorage
@@ -75,6 +76,7 @@ class ReverseProxied:
 
 
 app = Flask('My LTI Wrapper')
+CORS(app)
 app.wsgi_app = ReverseProxied(app.wsgi_app)
 
 config = {
@@ -156,11 +158,27 @@ def launch():
     
     message_launch_data = message_launch.get_launch_data()
 
-    random_score = random.randint(0,99)
-
-    host = request.headers['X-Forwarded-Host'] if 'X-Forwarded-Host' in request.headers else request.headers['Host']
-    req = f"https://{host}/lti/api/score/{message_launch.get_launch_id()}/{random_score}/"
-    return f'<a href={req}>{req}</a>'
+    launch_id = message_launch.get_launch_id()
+    
+    try:
+        redirect_url = message_launch_data["https://purl.imsglobal.org/spec/lti/claim/custom"]["redirect"]
+        destination_url = f'{redirect_url}#launch_id={launch_id}'
+        return Response(f'Redirecting to <a href={destination_url}>{destination_url}</a>',
+                        status=301,
+                        headers={'location': f'{destination_url}'})
+    except Exception as err:    
+        output = '\n'.join([
+            f'Launch successful, please note the details below\n',
+            f'launch_id (useful for calling the rest of api): {launch_id}\n',
+            f'launch_id will be fowarded to another app using HTML fragment if you provide',
+            f'a custom field with  "redirect": "url"\n',
+            f'{json.dumps(message_launch_data, indent=2)}'
+        ])
+        # host = request.headers['X-Forwarded-Host'] if 'X-Forwarded-Host' in request.headers else request.headers['Host']    
+        # req = f"https://{host}/lti/api/score/{message_launch.get_launch_id()}/{random_score}/"    
+        # random_score = random.randint(0,99)    
+        # return f'<a href={req}>{req}</a>'        
+        return Response(response=output, headers={ 'content-type': 'text/plain' })
 
 @app.route('/api/score/<launch_id>/<score>/', methods=['GET'])
 def score(launch_id, score):
