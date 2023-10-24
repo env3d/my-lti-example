@@ -83,7 +83,8 @@ CORS(app)
 config = {
     "DEBUG": True,
     "ENV": "development",
-    "CACHE_TYPE": "simple",
+    "CACHE_TYPE": "RedisCache",
+    "CACHE_REDIS_HOST": "cache",
     "CACHE_DEFAULT_TIMEOUT": 600,
     "SECRET_KEY": "replace-me",
     "SESSION_TYPE": "filesystem",

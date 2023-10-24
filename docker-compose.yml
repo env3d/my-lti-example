@@ -1,5 +1,13 @@
 services:
   web:
     build: .
+    restart: always
     ports:
       - "80:9001"
+      
+  cache:
+    image: redis
+    restart: always
+    ports:
+      - '6379:6379'
+    
