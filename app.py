@@ -17,6 +17,7 @@ import logging
 logging.getLogger().setLevel(logging.INFO)
 
 from tempfile import mkdtemp
+import redis
 from flask import Flask, jsonify, request, render_template, url_for, Response, session
 from flask_cors import CORS
 from flask_caching import Cache
@@ -89,6 +90,7 @@ config = {
     "SECRET_KEY": "replace-me",
     "SESSION_TYPE": "filesystem",
     "SESSION_FILE_DIR": mkdtemp(),
+    "SESSION_REDIS": redis.from_url('redis://redis:6379'),
     "SESSION_COOKIE_NAME": "pylti1p3-flask-app-sessionid",
     "SESSION_COOKIE_HTTPONLY": True,
     "SESSION_COOKIE_SECURE": False,   # should be True in case of HTTPS usage (production)
