@@ -66,19 +66,7 @@ def get_tool_config( merge_config ):
 
     return tool_conf
 
-class ReverseProxied:
-    def __init__(self, app):
-        self.app = app
-
-    def __call__(self, environ, start_response):
-        scheme = environ.get('HTTP_X_FORWARDED_PROTO')
-        if scheme:
-            environ['wsgi.url_scheme'] = scheme
-        return self.app(environ, start_response)
-
-
 app = Flask('My LTI Wrapper')
-app.wsgi_app = ReverseProxied(app.wsgi_app)
 CORS(app)
 
 config = {
@@ -92,7 +80,7 @@ config = {
     "SESSION_FILE_DIR": mkdtemp(),
     "SESSION_REDIS": redis.from_url('redis://redis:6379'),
     "SESSION_COOKIE_NAME": "pylti1p3-flask-app-sessionid",
-    "SESSION_COOKIE_HTTPONLY": True,
+    "SESSION_COOKIE_HTTPONLY": False,
     "SESSION_COOKIE_SECURE": False,   # should be True in case of HTTPS usage (production)
     "SESSION_COOKIE_SAMESITE": None,  # should be 'None' in case of HTTPS usage (production)
     "DEBUG_TB_INTERCEPT_REDIRECTS": False
