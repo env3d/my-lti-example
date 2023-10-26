@@ -2,8 +2,6 @@ services:
   web:
     build: .
     command: "python app.py"
-    ports:
-      - "9001:9001"
     volumes:
       - '.:/my-lti-example'
 
