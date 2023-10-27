@@ -3,7 +3,7 @@ services:
     build: .
     restart: always
     ports:
-      - "900:9001"
+      - "9001:9001"
       
   cache:
     image: redis
